@@ -1,13 +1,13 @@
 ﻿using CourseLibrary.API.Entities;
+using CourseLibrary.API.Helpers;
 using CourseLibrary.API.ResourceParameters;
 using System;
 using System.Collections.Generic;
-using CourseLibrary.API.Helpers;
 
 namespace CourseLibrary.API.Services
 {
     public interface ICourseLibraryRepository
-    {    
+    {
         IEnumerable<Course> GetCourses(Guid authorId);
         Course GetCourse(Guid authorId, Guid courseId);
         void AddCourse(Guid authorId, Course course);

@@ -1,20 +1,24 @@
 ﻿using CourseLibrary.API.DbContexts;
 using CourseLibrary.API.Entities;
+using CourseLibrary.API.Helpers;
 using CourseLibrary.API.ResourceParameters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using CourseLibrary.API.Helpers;
 
 namespace CourseLibrary.API.Services
 {
     public class CourseLibraryRepository : ICourseLibraryRepository, IDisposable
     {
         private readonly CourseLibraryContext _context;
+        private readonly IPropertyMappingService _propertyMappingService;
 
-        public CourseLibraryRepository(CourseLibraryContext context)
+        public CourseLibraryRepository(CourseLibraryContext context,
+            IPropertyMappingService propertyMappingService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _propertyMappingService = propertyMappingService ??
+                throw new ArgumentNullException(nameof(propertyMappingService));
         }
 
         public void AddCourse(Guid authorId, Course course)
@@ -28,7 +32,6 @@ namespace CourseLibrary.API.Services
             {
                 throw new ArgumentNullException(nameof(course));
             }
-
             // always set the AuthorId to the passed-in authorId
             course.AuthorId = authorId;
             _context.Courses.Add(course);
@@ -52,7 +55,7 @@ namespace CourseLibrary.API.Services
             }
 
             return _context.Courses
-                .Where(c => c.AuthorId == authorId && c.Id == courseId).FirstOrDefault();
+              .Where(c => c.AuthorId == authorId && c.Id == courseId).FirstOrDefault();
         }
 
         public IEnumerable<Course> GetCourses(Guid authorId)
@@ -63,8 +66,8 @@ namespace CourseLibrary.API.Services
             }
 
             return _context.Courses
-                .Where(c => c.AuthorId == authorId)
-                .OrderBy(c => c.Title).ToList();
+                        .Where(c => c.AuthorId == authorId)
+                        .OrderBy(c => c.Title).ToList();
         }
 
         public void UpdateCourse(Course course)
@@ -132,12 +135,6 @@ namespace CourseLibrary.API.Services
                 throw new ArgumentNullException(nameof(authorsResourceParameters));
             }
 
-            //if (string.IsNullOrWhiteSpace(authorsResourceParameters.MainCategory)
-            //    && string.IsNullOrWhiteSpace(authorsResourceParameters.SearchQuery))
-            //{
-            //    return GetAuthors();
-            //}
-
             var collection = _context.Authors as IQueryable<Author>;
 
             if (!string.IsNullOrWhiteSpace(authorsResourceParameters.MainCategory))
@@ -148,13 +145,26 @@ namespace CourseLibrary.API.Services
 
             if (!string.IsNullOrWhiteSpace(authorsResourceParameters.SearchQuery))
             {
+
                 var searchQuery = authorsResourceParameters.SearchQuery.Trim();
                 collection = collection.Where(a => a.MainCategory.Contains(searchQuery)
-                                                   || a.FirstName.Contains(searchQuery)
-                                                   || a.LastName.Contains(searchQuery));
+                    || a.FirstName.Contains(searchQuery)
+                    || a.LastName.Contains(searchQuery));
             }
 
-            return PagedList<Author>.Create(collection, authorsResourceParameters.PageNumber, authorsResourceParameters.PageSize);
+            if (!string.IsNullOrWhiteSpace(authorsResourceParameters.OrderBy))
+            {
+                // get property mapping dictionary
+                var authorPropertyMappingDictionary =
+                    _propertyMappingService.GetPropertyMapping<Models.AuthorDto, Author>();
+
+                collection = collection.ApplySort(authorsResourceParameters.OrderBy,
+                    authorPropertyMappingDictionary);
+            }
+
+            return PagedList<Author>.Create(collection,
+                authorsResourceParameters.PageNumber,
+                authorsResourceParameters.PageSize);
         }
 
         public IEnumerable<Author> GetAuthors(IEnumerable<Guid> authorIds)
